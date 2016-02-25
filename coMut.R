@@ -16,13 +16,8 @@ columns.to.coMut = function(maf, variant.categories=tcga.mapping(), type=c("muta
   samples = factor(as.character(maf[,sample.column]), levels = sample.list)
   genes = factor(as.character(maf[,gene.column]), levels = gene.list)
   variants = as.character(maf[,variant.column])
-  total.variants.samples.genes = xtabs(~ variants + samples + genes)
     
-  ## Subset maf and get new info  
-  maf = subset(maf, maf[,sample.column] %in% sample.list & maf[,gene.column] %in% gene.list)
-  samples = factor(as.character(maf[,sample.column]), levels = sample.list)
-  genes = factor(as.character(maf[,gene.column]), levels = gene.list)
-  variants = as.character(maf[,variant.column])
+  total.variants.samples.genes.full = xtabs(~ variants + samples + genes)
   
   ## Perform category name substitution  							
   variant.id = rep(0, length(variants))
@@ -37,6 +32,15 @@ columns.to.coMut = function(maf, variant.categories=tcga.mapping(), type=c("muta
   if(length(variants.extra) > 0) {
     if(verbose == TRUE) { cat("The following variant categories were in the maf but not in the variant.categories variable:", "\n", paste(variants.extra, collapse="\n"), "\nThese will not be considered in the final matrix\n") }
   }
+
+  ## Subset to selected genes, samples, and variants
+  ind = maf[,sample.column] %in% sample.list & maf[,gene.column] %in% gene.list & variant.id != 0
+  samples = factor(as.character(maf[ind,sample.column]), levels = sample.list)
+  genes = factor(as.character(maf[ind,gene.column]), levels = gene.list)
+  variants = as.character(maf[ind,variant.column])
+  variant.id = variant.id[ind]
+  
+  total.variants.samples.genes = xtabs(~ variants + samples + genes)
   
   variant.agg <- aggregate(formula = variant.id ~ genes + samples, FUN = max, na.rm=TRUE) 
   variant.matrix <- as.matrix(xtabs(formula = variant.id ~ genes + samples, data=variant.agg, drop.unused.levels = FALSE))
@@ -75,7 +79,7 @@ columns.to.coMut = function(maf, variant.categories=tcga.mapping(), type=c("muta
   keep.in.ordering = rep(TRUE, nrow(variant.matrix))
   names(keep.in.ordering) = rownames(variant.matrix)
 
-  return(list(matrix=variant.matrix, type=type, mapping=variant.categories, counts=total.variants.samples.genes, keep=keep.in.ordering, keep.in.plot))
+  return(list(matrix=variant.matrix, type=type, mapping=variant.categories, counts=total.variants.samples.genes, full.counts=total.variants.samples.genes.full, keep=keep.in.ordering, keep.in.plot))
 }
 
 
@@ -341,7 +345,7 @@ tabler = function(tabler.obj, plot.samples="all", plot.samples.index=NULL,
 
 
 
-coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", "custom"), left.bar.args=list(), right.bar=c("frequency","counts","none","custom"), right.bar.args=list(), tabler.args=list(), mar=par("mar"), close.screens=TRUE) {
+coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", "custom"), left.bar.args=list(), right.bar=c("frequency","counts","none","custom"), right.bar.args=list(), tabler.args=list(row.freq=FALSE), mar=par("mar"), close.screens=TRUE) {
 
   left.bar = match.arg(left.bar)
   right.bar = match.arg(right.bar)
@@ -350,7 +354,14 @@ coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", 
   ## Set up screen dimensions
   screen.dims = rbind(c(0,0.1,0,1), c(0.10,0.70,0,1), c(0.70,0.80,0,1), c(0.80,1,0,1))
   local.screens = split.screen(screen.dims)
-    
+
+  ## close screens on exit if requested
+  on.exit( {
+    if(close.screens == TRUE) {
+      close.screen(local.screens)
+  }})
+  
+  #### Plot left bar plot
   screen(local.screens[1])
   temp.mar = mar
   temp.mar[4] = 0
@@ -359,20 +370,32 @@ coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", 
 #    left.bar.required.args = list(counts=coMut.obj$counts, horiz=TRUE, gene.order=rev(rownames(coMut.obj$matrix)), draw.gene.labels=FALSE)
 #    do.call.args("gene.barplot", left.bar.required.args, left.bar.args) 
 #  }  
-    
+  
+  ### Plot matrix of mutations  
   screen(local.screens[2])
-  plot.row.freq = ifelse(coMut.obj$type == "mutation", TRUE, FALSE)
+  plot.row.freq = FALSE
+  if(!is.null(tabler.args[["row.freq"]])) {
+    if(coMut.obj$type == "mutation" & tabler.args[["row.freq"]] == TRUE) {
+      plot.row.freq = TRUE  
+    }
+  }
+  
   temp.mar = mar
   temp.mar[2] = 4.1
-  temp.mar[4] = 2.1
+  if(plot.row.freq == TRUE) {
+    temp.mar[4] = 2.1
+  } else {
+    temp.mar[4] = 0
+  }
   par(mar=temp.mar, oma=oma, mgp=mgp)
   do.call.args("tabler", list(tabler.obj=coMut.obj, row.freq=plot.row.freq), tabler.args)
 
+  #### Plot right bar plot
   screen(local.screens[3])
   temp.mar = mar
-  temp.mar[2] = 0
+  temp.mar[2] = 0.5
   temp.mar[4] = 0
-  temp.mgp = c(0.5,0.1,0)
+  temp.mgp = c(0.5,0.1,0.02)
 
   par(mar=temp.mar, oma=oma, mgp=temp.mgp)    
   if(right.bar != "none" & coMut.obj$type == "mutation") {
@@ -393,16 +416,13 @@ coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", 
   legend.required.args = list(x="left", legend=as.character(coMut.obj$mapping[,"final.classification"]), fill=as.character(coMut.obj$mapping[,"bg.col"]), bty="n", pt.cex=1, cex=cex.legend, y.intersp=0.75)
   do.call.args("legend", legend.required.args)
   
-  if(close.screens == TRUE) {
-    close.screen(local.screens)
-  }  
 }
 
 
 
 
 
-multi.coMut = function(table.list, sample.order="mutation.type", close.screens=TRUE, between.table.space = 0.025, row.space = 0.025, mar=c(3,1,1,1), bg.col="white", na.col="grey90", labCol=TRUE, plot.samples="all", left.bar.type=c("none", "counts", "frequency", "custom"), right.bar.type=c("counts", "frequency", "custom", "none"), ...) {
+multi.coMut = function(table.list, sample.order="mutation.type", close.screens=TRUE, between.table.space = 0.025, row.space = 0.025, mar=c(3,1,1,1), bg.col="white", na.col="grey90", labCol=TRUE, plot.samples="all", left.bar.type=c("none", "counts", "frequency", "custom"), right.bar.type=c("counts", "frequency", "custom", "none"), right.bar.beside=NULL, right.bar.stack=NULL) {
   
   
   left.bar.type = match.arg(left.bar.type)
@@ -506,20 +526,16 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
   ss.left = 0  ## par(mar) will be used for now to move the sides of the plots in
   ss.right = 1
 
-  ss.matrix = cbind(ss.left, ss.right, ss.bottom, ss.top)
-
+  ss.matrix = round(cbind(ss.left, ss.right, ss.bottom, ss.top), 3)
+  
   ## Remove dummy row at the end and ensure it is a matrix (for the case when only one element in table.list)
   ss.matrix = matrix(ss.matrix[-nrow(ss.matrix),], byrow=FALSE, ncol=4) 
+  if(sum(ss.matrix < 0) > 0) { stop("split.screen matrix has negative values") }
 
 
   ## Check to see if ss.matrix values are outside [0,1] interval and adjust if necessary
   #ss.matrix = rescale.screen(ss.matrix)
   
-  ## Get maximum bar to use for right bar
-  max.count = NULL
-  if(right.bar.type != "none") {
-    max.count = get.max.bar.from.table.list(table.list, right.bar.type)
-  } 
   
   ## Get gene name cex to use for all coMuts
   all.names = c()
@@ -527,6 +543,54 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
     all.names = c(all.names, rownames(table.list[[i]]$matrix))
   }
   gene.name.cex = compute.cex(width=mar.fig.fraction[2]*par("fin")[1], height=0.8*row.space*par("fin")[2], label=all.names, cex.lim=c(0.01, 1))
+  
+  ## Get groups for right.bar beside groups 
+  right.bar.beside.group = NULL
+  bar.col = NULL
+  if(!is.null(right.bar.beside)) {
+    ind = as.numeric(right.bar.beside[1])
+
+    temp.matrix = table.list[[ind]]$matrix
+    temp.mapping = table.list[[ind]]$mapping
+
+	right.bar.beside.group = temp.matrix[right.bar.beside[2],]
+    matrix.values = unique(c(right.bar.beside.group))
+    temp.mapping = subset(temp.mapping, temp.mapping[,1] %in% matrix.values)
+        
+    right.bar.beside.group = mapvalues(right.bar.beside.group, as.character(temp.mapping[,1]), as.character(temp.mapping[,3]), warn_missing=FALSE)
+    bar.col = rbind(bar.col, as.character(temp.mapping$bg.col))
+    names(right.bar.beside.group) = colnames(temp.matrix)
+    right.bar.beside = "samples"
+  } 
+
+  ## Get groups for right.bar stack groups
+  right.bar.stack.group = NULL  
+  if(!is.null(right.bar.stack)) {
+    ind = as.numeric(right.bar.stack[1])
+    temp.matrix = table.list[[ind]]$matrix
+    temp.mapping = table.list[[ind]]$mapping
+
+	right.bar.stack.group = temp.matrix[right.bar.stack[2],]
+    matrix.values = unique(c(right.bar.stack.group))
+    temp.mapping = subset(temp.mapping, temp.mapping[,1] %in% matrix.values)
+        
+    right.bar.stack.group = mapvalues(right.bar.stack.group, as.character(temp.mapping[,1]), as.character(temp.mapping[,3]), warn_missing=FALSE)
+    
+    if(is.null(bar.col)) {
+      bar.col = cbind(bar.col, as.character(temp.mapping$bg.col))
+    } else {
+      bar.col = rbind(bar.col, as.character(temp.mapping$bg.col))
+    }
+    names(right.bar.stack.group) = colnames(temp.matrix)
+    right.bar.stack = "samples"
+  }  
+
+  ## Get maximum bar to use for right bar
+  max.count = NULL
+  if(right.bar.type != "none") {
+    l = list(type=right.bar.type, horizontal.group.by=right.bar.beside, horizontal.group=right.bar.beside.group, vertical.group.by=right.bar.stack, vertical.group=right.bar.stack.group)
+    max.count = get.max.bar.from.table.list(table.list, l)
+  } 
 
   ## Plot each coMut by using split screen
   screen.index = split.screen(ss.matrix)
@@ -550,13 +614,15 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
     } else {
       temp.mar[c(1,3)] = 0
     }
-    
+  
     screen(screen.index[i])
     new.tabler = table.list[[i]]
     new.tabler$matrix = new.tabler$matrix[,global.sample.names,drop=FALSE]
 
     ## Plot table
-    coMut.with.bars(new.tabler, mar=temp.mar, tabler.args=list(cexRow=gene.name.cex, column.label=plot.bottom.labels, plot.samples="selected", plot.samples.index=samples.to.show.order, bg.col=bg.col, na.col=na.col), right.bar.args=list(type=right.bar.type, draw.axis=plot.bottom.labels, draw.gene.labels=FALSE, draw.axis.title=plot.bottom.labels, axis.lim=c(0,max.count)))
+    coMut.with.bars(new.tabler, mar=temp.mar,
+    	tabler.args=list(cexRow=gene.name.cex, column.label=plot.bottom.labels, plot.samples="selected", plot.samples.index=samples.to.show.order, bg.col=bg.col, na.col=na.col),
+    	right.bar.args=list(type=right.bar.type, draw.axis=plot.bottom.labels, draw.gene.labels=FALSE, draw.axis.title=plot.bottom.labels, axis.lim=c(0,max.count), horizontal.group=right.bar.beside.group, horizontal.group.by=right.bar.beside, vertical.group.by=right.bar.stack, vertical.group=right.bar.stack.group, col=bar.col))
 
   }  
 
@@ -639,7 +705,7 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
   
   ## Create a vectors correpsonding to the horiztonal and vertical grouping variables  
   if(vertical.group.by != "none" & !is.null(vertical.group)) {
-    vertical.group.ix = as.factor(mapvalues(counts.melt[,vertical.group.by], names(vertical.group), vertical.group))
+    vertical.group.ix = as.factor(mapvalues(counts.melt[,vertical.group.by], names(vertical.group), vertical.group, warn_missing=FALSE))
   } else if (vertical.group.by != "none") {
     vertical.group.ix = as.factor(counts.melt[,vertical.group.by])
   } else {
@@ -647,7 +713,7 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
   }  
   
   if(horizontal.group.by != "none" & !is.null(horizontal.group)) {
-    horizontal.group.ix = as.factor(mapvalues(counts.melt[,horizontal.group.by], names(horizontal.group), horizontal.group))
+    horizontal.group.ix = as.factor(mapvalues(counts.melt[,horizontal.group.by], names(horizontal.group), horizontal.group, warn_missing=FALSE))
   } else if (horizontal.group.by != "none") {
     horizontal.group.ix = as.factor(counts.melt[,horizontal.group.by])
   } else {
@@ -665,22 +731,30 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
     counts.by.group = xtabs(value ~ genes + horizontal.group.ix + vertical.group.ix, data=counts.melt)
     axis.lab = "Mutation counts"
   } else if (type == "frequency" & vertical.group.by == "samples" & horizontal.group.by == "none") {
-    n.samp = table(vertical.group)
+
     counts.by.group = xtabs(value ~ genes + horizontal.group.ix + vertical.group.ix, data=counts.melt) 
+    n.samp = table(vertical.group)
+    n.samp = n.samp[dimnames(counts.by.group)$vertical.group.ix]
     counts.by.group = sweep(counts.by.group, 3, n.samp, "/")
     axis.lab = "Mutation frequency"
+    
   } else if (type == "frequency" & horizontal.group.by == "samples" & vertical.group.by == "none") {
-    n.samp = table(horizontal.group)
+
     counts.by.group = xtabs(value ~ genes + horizontal.group.ix + vertical.group.ix, data=counts.melt) 
+    n.samp = table(horizontal.group)
+    n.samp = n.samp[dimnames(counts.by.group)$horizontal.group.ix]
     counts.by.group = sweep(counts.by.group, 2, n.samp, "/") 
     axis.lab = "Mutation frequency"
+
   } else if (type == "frequency" & horizontal.group.by == "none" & vertical.group.by == "none") {
+
     n.samp = dim(counts)[2]
     counts.by.group = xtabs(value ~ genes + horizontal.group.ix + vertical.group.ix, data=counts.melt) 
     counts.by.group = counts.by.group / n.samp
     axis.lab = "Mutation frequency"
+
   } else {
-    stop("type='frequency' cannot be used with 'variants'")
+    stop("type='frequency' cannot be used with 'variants' or with both horizontal.group.by and vertical.group.by set to 'samples'")
   }
 
  
@@ -1094,13 +1168,14 @@ rescale.screen = function(screen.matrix) {
 }
 
 
-get.max.bar.from.table.list = function(table.list, type) {
+get.max.bar.from.table.list = function(table.list, params) {
   max.count = 0
   ntable = length(table.list)
   for(i in 1:ntable) {
     if(table.list[[i]]$type == "mutation") {
-      b = gene.barplot(counts=table.list[[i]]$counts, type=type, plot=FALSE)
-      max.count = max(max.count, max(abs(b$lim)))
+      params.required = list(counts=table.list[[i]]$counts, plot=FALSE) 
+      b = do.call.args("gene.barplot", params.required, params)
+      max.count = max(max.count, max(abs(b$lim)))  
     }  
   }
   return(max.count)
