@@ -422,7 +422,7 @@ coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", 
 
 
 
-multi.coMut = function(table.list, sample.order="mutation.type", close.screens=TRUE, between.table.space = 0.025, row.space = 0.025, mar=c(3,1,1,1), bg.col="white", na.col="grey90", labCol=TRUE, plot.samples="all", left.bar.type=c("none", "counts", "frequency", "custom"), right.bar.type=c("counts", "frequency", "custom", "none"), right.bar.beside=NULL, right.bar.stack=NULL) {
+multi.coMut = function(table.list, sample.order="mutation.type", close.screens=TRUE, between.table.space = 0.025, row.space = 0.025, mar=c(3,1,1,1), bg.col="white", na.col="grey90", labCol=TRUE, plot.samples="all", left.bar.type=c("none", "counts", "frequency", "custom"), right.bar.type=c("counts", "frequency", "custom", "none"), right.bar.beside=NULL, right.bar.stack=NULL, tabler.args=list()) {
   
   
   left.bar.type = match.arg(left.bar.type)
@@ -621,7 +621,7 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
 
     ## Plot table
     coMut.with.bars(new.tabler, mar=temp.mar,
-    	tabler.args=list(cexRow=gene.name.cex, column.label=plot.bottom.labels, plot.samples="selected", plot.samples.index=samples.to.show.order, bg.col=bg.col, na.col=na.col),
+    	tabler.args=c(tabler.args, list(cexRow=gene.name.cex, column.label=plot.bottom.labels, plot.samples="selected", plot.samples.index=samples.to.show.order, bg.col=bg.col, na.col=na.col)),
     	right.bar.args=list(type=right.bar.type, draw.axis=plot.bottom.labels, draw.gene.labels=FALSE, draw.axis.title=plot.bottom.labels, axis.lim=c(0,max.count), horizontal.group=right.bar.beside.group, horizontal.group.by=right.bar.beside, vertical.group.by=right.bar.stack, vertical.group=right.bar.stack.group, col=bar.col))
 
   }  
