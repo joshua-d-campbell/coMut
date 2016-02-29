@@ -422,7 +422,7 @@ coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", 
 
 
 
-multi.coMut = function(table.list, sample.order="mutation.type", close.screens=TRUE, between.table.space = 0.025, row.space = 0.025, mar=c(3,1,1,1), bg.col="white", na.col="grey90", labCol=TRUE, plot.samples="all", left.bar.type=c("none", "counts", "frequency", "custom"), right.bar.type=c("counts", "frequency", "custom", "none"), right.bar.beside=NULL, right.bar.stack=NULL, tabler.args=list()) {
+multi.coMut = function(table.list, sample.order="mutation.type", close.screens=TRUE, between.table.space = 0.025, row.space = 0.025, mar=c(1,3,1,1), bg.col="white", na.col="grey90", labCol=TRUE, plot.samples="all", left.bar.type=c("none", "counts", "frequency", "custom"), right.bar.type=c("counts", "frequency", "custom", "none"), right.bar.beside=NULL, right.bar.stack=NULL, tabler.args=list()) {
   
   
   left.bar.type = match.arg(left.bar.type)
@@ -518,7 +518,7 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
   ## Add space to bottom and top for margins
   table.spacing[1] = table.spacing[1] + mar.fig.fraction[3]
   table.spacing[ntable] = table.spacing[ntable] + mar.fig.fraction[1]
-  
+
   ## Set up split.screen matrix
   between.table.shift = c(cumsum(rep(between.table.space, ntable))) 
   ss.top = c(1, 1-cumsum(table.spacing) - between.table.shift)
@@ -606,12 +606,20 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
     
     if(i == ntable & labCol == TRUE) {
       plot.bottom.labels = TRUE
+      plot.bottom.axis = TRUE
+      temp.mar = mar
+      temp.mar[3] = 0
+    } else if (i == ntable & labCol == FALSE) {
+      plot.bottom.labels = FALSE
+      plot.bottom.axis = TRUE
       temp.mar = mar
       temp.mar[3] = 0
     } else if (i == 1) {
+      plot.bottom.axis = FALSE
       temp.mar = mar
       temp.mar[1] = 0
     } else {
+      plot.bottom.axis = FALSE
       temp.mar[c(1,3)] = 0
     }
   
@@ -622,7 +630,7 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
     ## Plot table
     coMut.with.bars(new.tabler, mar=temp.mar,
     	tabler.args=c(tabler.args, list(cexRow=gene.name.cex, column.label=plot.bottom.labels, plot.samples="selected", plot.samples.index=samples.to.show.order, bg.col=bg.col, na.col=na.col)),
-    	right.bar.args=list(type=right.bar.type, draw.axis=plot.bottom.labels, draw.gene.labels=FALSE, draw.axis.title=plot.bottom.labels, axis.lim=c(0,max.count), horizontal.group=right.bar.beside.group, horizontal.group.by=right.bar.beside, vertical.group.by=right.bar.stack, vertical.group=right.bar.stack.group, col=bar.col))
+    	right.bar.args=list(type=right.bar.type, draw.axis=plot.bottom.axis, draw.gene.labels=FALSE, draw.axis.title=plot.bottom.axis, axis.lim=c(0,max.count), horizontal.group=right.bar.beside.group, horizontal.group.by=right.bar.beside, vertical.group.by=right.bar.stack, vertical.group=right.bar.stack.group, col=bar.col))
 
   }  
 
@@ -633,7 +641,7 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
 
 
 
-gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "frequency"), vertical.group.by=c("none", "variants", "samples"), vertical.group=NULL, horizontal.group.by=c("none", "variants", "samples"), horizontal.group=NULL, horiz=FALSE, reverse=FALSE, axis.lim=NULL, space=0.1, draw.axis=TRUE, draw.gene.labels=TRUE, draw.axis.title=TRUE, plot=TRUE) {
+gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "frequency"), vertical.group.by=c("none", "variants", "samples"), vertical.group=NULL, horizontal.group.by=c("none", "variants", "samples"), horizontal.group=NULL, horiz=FALSE, reverse=FALSE, axis.lim=NULL, space=0.1, draw.axis=TRUE, draw.gene.labels=TRUE, draw.axis.title=TRUE, draw.freq=FALSE, plot=TRUE) {
 
   ## Takes a 3-dimensional array of variant by sample by gene counts and generates a barplot according to the supplied grouping structure
   ## Written by: Josh Campbell
@@ -688,7 +696,7 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
   } else if (!is.overlapping(gene.order, dimnames(counts)$genes)) {
     stop("gene.order needs to be a vector of genes names perfectly overlapping with dimnames(counts)[3]")
   } else {
-    counts = counts[,,gene.order]
+    counts = counts[,,gene.order,drop=FALSE]
   }
 
 
@@ -711,7 +719,7 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
   } else {
     vertical.group.ix = as.factor(rep(1, nrow(counts.melt)))
   }  
-  
+
   if(horizontal.group.by != "none" & !is.null(horizontal.group)) {
     horizontal.group.ix = as.factor(mapvalues(counts.melt[,horizontal.group.by], names(horizontal.group), horizontal.group, warn_missing=FALSE))
   } else if (horizontal.group.by != "none") {
@@ -799,6 +807,7 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
   NC = ncol(final.cs)
   y.start = c(t(final.cs[-NR,]))
   y.end = c(t(final.cs[-1,]))
+  y.actual.counts = c(t(final[-1,]))
   
   ## Get spacing on x axis
   x.start.base = space[1L] + 0:(n.gene-1)
@@ -807,6 +816,10 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
   x.start = c(t(x.adj[-(n.horizontal.groups+1),]))
   x.end = c(t(x.adj[-1,]))
 
+  ## Replicate for each 
+  x.start = rep(x.start, n.vertical.groups)
+  x.end = rep(x.end, n.vertical.groups)
+  
   ## Replicate color for each set of bars within each gene
   if(is.null(col)) {
     ## Default set to gray colors
@@ -833,30 +846,38 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
 
     plot(0, xlim=c(axis.min,axis.max), ylim=c(0,n.gene), ylab="", xlab="", type="n", xaxt="n", yaxt="n", bty="n", yaxs="i", xaxs="i", ann=FALSE)
     rect(y.start, x.start, y.end, x.end, xaxt="n", yaxt="n", col=new.col)
-    plotting.matrix = cbind(x1=y.start, y1=x.start, x2=y.end, y2=x.end, color=new.col)
+    plotting.matrix = data.frame(x1=y.start, y1=x.start, x2=y.end, y2=x.end, color=new.col, y.actual.counts, stringsAsFactors=FALSE)
 
     axis.side = 1
     fin = 2
     axp = "xaxp"    
     if(reverse == TRUE) {
       label.side=4
+      freq.side=2
+      freq.las=2
     } else {
-      label.side=2    
+      label.side=2
+      freq.side=4
+      freq.las=2
     }  
 
   } else {
 
     plot(0, xlim=c(0,n.gene), ylim=c(axis.min,axis.max), ylab="", xlab="", type="n", xaxt="n", yaxt="n", bty="n", xaxs="i", yaxs="i", ann=FALSE)
     rect(x.start, y.start, x.end, y.end, xaxt="n", yaxt="n", col=new.col)
-    plotting.matrix = cbind(x1=x.start, y1=y.start, x2=x.end, y2=y.end, color=new.col)
+    plotting.matrix = data.frame(x1=x.start, y1=y.start, x2=x.end, y2=y.end, color=new.col, y.actual.counts, stringsAsFactors=FALSE)
 
     axis.side = 2
     fin = 1
     axp = "yaxp"
     if(reverse == TRUE) {
       label.side=3
+      freq.side=1
+      freq.las=1
     } else {
-      label.side=1    
+      label.side=1
+      freq.side=3
+      freq.las=1    
     }  
   } 
 
@@ -879,6 +900,30 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
   if(draw.gene.labels == TRUE) { 
     cex = compute.cex(width = (mar[label.side] - par("mgp")[2] - 0.5)* mar.to.mai(), height = par("pin")[fin] / n.gene, label = dimnames(counts.by.group)[[1]])
     axis(label.side, las=2, at=1:n.gene - 0.5, cex.axis=cex, labels=dimnames(counts.by.group)[[1]])
+  }
+  if(draw.freq == TRUE) {
+    ## Make labels differently for frequency vs. counts
+    if(type == "frequency") {
+      y.round = as.character(round(y.actual.counts*100))
+      y.lab = as.character(y.round)
+      y.lab[y.round < 1] = "<1"
+    } else {
+      y.lab = as.character(y.actual.counts)
+    }
+    
+    ## Get the mid point for each horizontal.bar
+	mar.loc = x.start + ((x.end - x.start)/2)
+    mar.line = rep(0:(n.vertical.groups-1), each=n.horizontal.groups*n.gene)
+    cex = 0.8 * compute.cex(width = ((mar[freq.side] - par("mgp")[2]) / n.vertical.groups) * mar.to.mai(), height = par("pin")[fin] / n.gene / n.horizontal.groups, label = y.lab)
+    
+    ## Plot for each line (vertical.group)
+    for(i in unique(mar.line)) {
+      ind = mar.line == i
+      s1 = seq(1, length(ind), by=2)  ## Trick R into plotting all labels even if they overlap by plotting every other one 
+      s2 = seq(2, length(ind), by=2)
+      axis(at=mar.loc[ind][s1], labels=y.lab[ind][s1], side=freq.side, line=i, tick=FALSE, las=freq.las, hadj=0.5, padj=0.5, cex.axis=cex)
+      axis(at=mar.loc[ind][s2], labels=y.lab[ind][s2], side=freq.side, line=i, tick=FALSE, las=freq.las, hadj=0.5, padj=0.5, cex.axis=cex)
+    }
   }
   }
 
@@ -931,9 +976,12 @@ sort.coMut = function(	M,
   #
   ######################################################################################
 
-
+  
   margin = match.arg(margin)
-  ordering = match.arg(ordering)
+  
+  if(length(ordering) == 1) {
+    ordering = match.arg(ordering)
+  }  
   
   ## The rest of the function assumes ordering will be done by row. Transpose matrix if columns need sorting
   if(margin == "columns") {
