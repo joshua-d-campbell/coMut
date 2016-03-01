@@ -1,4 +1,4 @@
-columns.to.coMut = function(maf, variant.categories=tcga.mapping(), type=c("mutation", "annotation"), sample.list=NULL, gene.list=NULL, gene.order="frequency", sample.order="mutation.type", sample.column="Tumor_Sample_Barcode", variant.column="Variant_Classification", gene.column="Hugo_Symbol", custom.sample.grouping=NULL, na.samples=NULL, na.genes=NULL, verbose=TRUE) {
+columns.to.coMut = function(maf, variant.categories=tcga.mapping(), type=c("mutation", "annotation"), sample.list=NULL, gene.list=NULL, gene.order.by="frequency", gene.order=NULL, sample.order.by="mutation.type", sample.order=NULL, sample.column="Tumor_Sample_Barcode", variant.column="Variant_Classification", gene.column="Hugo_Symbol", custom.sample.grouping=NULL, na.samples=NULL, na.genes=NULL, verbose=TRUE) {
  
   type = match.arg(type)
  
@@ -56,14 +56,14 @@ columns.to.coMut = function(maf, variant.categories=tcga.mapping(), type=c("muta
 
   ## Order rows 
   if(nrow(variant.matrix) > 1) { 
-    row.o = sort.coMut(variant.matrix, ordering=gene.order, margin="rows")
+    row.o = sort.coMut(variant.matrix, ordering=gene.order.by, names=gene.order, index=gene.order, margin="rows")
   } else {
     row.o = 1
   }
 
   ## Order columns
   if(ncol(variant.matrix) > 1) {
-    col.o = sort.coMut(variant.matrix, ordering=sample.order, margin="columns")
+    col.o = sort.coMut(variant.matrix, ordering=sample.order.by, names=sample.order, index=sample.order, margin="columns")
   } else {
     col.o = 1
   }
@@ -84,7 +84,7 @@ columns.to.coMut = function(maf, variant.categories=tcga.mapping(), type=c("muta
 
 
 
-matrix.to.coMut = function(mat, type=c("mutation", "annotation"), variant.categories=tcga.mapping(), sample.list=NULL, gene.list=NULL, gene.order="frequency", sample.order="mutation.type", na.samples=NULL, na.genes=NULL, verbose=TRUE) {
+matrix.to.coMut = function(mat, type=c("mutation", "annotation"), variant.categories=tcga.mapping(), sample.list=NULL, gene.list=NULL, gene.order.by="frequency", gene.order=NULL, sample.order.by="mutation.type", sample.order=NULL, na.samples=NULL, na.genes=NULL, verbose=TRUE) {
  
   type = match.arg(type)
   
@@ -153,14 +153,14 @@ matrix.to.coMut = function(mat, type=c("mutation", "annotation"), variant.catego
 
   ## Order rows 
   if(nrow(variant.matrix) > 1) { 
-    row.o = sort.coMut(variant.matrix, ordering=gene.order, margin="rows")
+    row.o = sort.coMut(variant.matrix, ordering=gene.order.by, names=gene.order, index=gene.order, margin="rows")
   } else {
     row.o = 1
   } 
 
   ## Order columns
   if(ncol(variant.matrix) > 1) {
-    col.o = sort.coMut(variant.matrix, ordering=sample.order, margin="columns")
+    col.o = sort.coMut(variant.matrix, ordering=sample.order.by, names=sample.order, index=sample.order, margin="columns")
   } else {
     col.o = 1
   }
@@ -220,7 +220,7 @@ tabler = function(tabler.obj, plot.samples="all", plot.samples.index=NULL,
     }
     row.freq.percent = round((rowSums(mat>0, na.rm=TRUE) / rowSums(!is.na(mat)))*100)
     row.freq.label = paste(row.freq.percent, "%", sep="")
-    row.freq.label[row.freq.percent < 1] = "<1%"
+    row.freq.label[row.freq.percent > 0 & row.freq.percent < 1] = "<1%"
 
     ## Remove unaltered samples if requested
     if(plot.samples == "mutated") {
@@ -352,7 +352,7 @@ coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", 
   oma = c(0,0,0,0)
   mgp = c(0,0,0)
   ## Set up screen dimensions
-  screen.dims = rbind(c(0,0.1,0,1), c(0.10,0.70,0,1), c(0.70,0.80,0,1), c(0.80,1,0,1))
+  screen.dims = rbind(c(0,0.1,0,1), c(0.10,0.70,0,1), c(0.70,0.90,0,1), c(0.90,1,0,1))
   local.screens = split.screen(screen.dims)
 
   ## close screens on exit if requested
@@ -394,7 +394,18 @@ coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", 
   screen(local.screens[3])
   temp.mar = mar
   temp.mar[2] = 0.5
-  temp.mar[4] = 0
+  
+  if(!is.null(right.bar.args[["draw.freq"]])) {
+    if(right.bar.args[["draw.freq"]] == TRUE) {
+      if(is.null(right.bar.args[["vertical.group"]])) {
+        temp.mar[4] = 1
+      } else {
+        temp.mar[4] = length(unique(right.bar.args[["vertical.group"]]))
+      }
+    }
+  } else {
+    temp.mar[4] = 0  
+  }  
   temp.mgp = c(0.5,0.1,0.02)
 
   par(mar=temp.mar, oma=oma, mgp=temp.mgp)    
@@ -422,7 +433,7 @@ coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", 
 
 
 
-multi.coMut = function(table.list, sample.order="mutation.type", close.screens=TRUE, between.table.space = 0.025, row.space = 0.025, mar=c(1,3,1,1), bg.col="white", na.col="grey90", labCol=TRUE, plot.samples="all", left.bar.type=c("none", "counts", "frequency", "custom"), right.bar.type=c("counts", "frequency", "custom", "none"), right.bar.beside=NULL, right.bar.stack=NULL, tabler.args=list()) {
+multi.coMut = function(table.list, sample.order="mutation.type", close.screens=TRUE, between.table.space = 0.025, row.space = 0.025, mar=c(1,3,1,1), bg.col="white", na.col="grey90", labCol=TRUE, plot.samples="all", left.bar.type=c("none", "counts", "frequency", "custom"), right.bar.type=c("counts", "frequency", "custom", "none"), right.bar.beside=NULL, right.bar.stack=NULL, right.bar.args=list(), tabler.args=list()) {
   
   
   left.bar.type = match.arg(left.bar.type)
@@ -546,7 +557,7 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
   
   ## Get groups for right.bar beside groups 
   right.bar.beside.group = NULL
-  bar.col = NULL
+#  bar.col = NULL
   if(!is.null(right.bar.beside)) {
     ind = as.numeric(right.bar.beside[1])
 
@@ -556,9 +567,8 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
 	right.bar.beside.group = temp.matrix[right.bar.beside[2],]
     matrix.values = unique(c(right.bar.beside.group))
     temp.mapping = subset(temp.mapping, temp.mapping[,1] %in% matrix.values)
-        
     right.bar.beside.group = mapvalues(right.bar.beside.group, as.character(temp.mapping[,1]), as.character(temp.mapping[,3]), warn_missing=FALSE)
-    bar.col = rbind(bar.col, as.character(temp.mapping$bg.col))
+ #   bar.col = rbind(bar.col, as.character(temp.mapping$bg.col))
     names(right.bar.beside.group) = colnames(temp.matrix)
     right.bar.beside = "samples"
   } 
@@ -576,11 +586,11 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
         
     right.bar.stack.group = mapvalues(right.bar.stack.group, as.character(temp.mapping[,1]), as.character(temp.mapping[,3]), warn_missing=FALSE)
     
-    if(is.null(bar.col)) {
-      bar.col = cbind(bar.col, as.character(temp.mapping$bg.col))
-    } else {
-      bar.col = rbind(bar.col, as.character(temp.mapping$bg.col))
-    }
+#    if(is.null(bar.col)) {
+#      bar.col = cbind(bar.col, as.character(temp.mapping$bg.col))
+#    } else {
+#      bar.col = rbind(bar.col, as.character(temp.mapping$bg.col))
+#    }
     names(right.bar.stack.group) = colnames(temp.matrix)
     right.bar.stack = "samples"
   }  
@@ -630,7 +640,7 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
     ## Plot table
     coMut.with.bars(new.tabler, mar=temp.mar,
     	tabler.args=c(tabler.args, list(cexRow=gene.name.cex, column.label=plot.bottom.labels, plot.samples="selected", plot.samples.index=samples.to.show.order, bg.col=bg.col, na.col=na.col)),
-    	right.bar.args=list(type=right.bar.type, draw.axis=plot.bottom.axis, draw.gene.labels=FALSE, draw.axis.title=plot.bottom.axis, axis.lim=c(0,max.count), horizontal.group=right.bar.beside.group, horizontal.group.by=right.bar.beside, vertical.group.by=right.bar.stack, vertical.group=right.bar.stack.group, col=bar.col))
+    	right.bar.args=c(right.bar.args, list(type=right.bar.type, draw.axis=plot.bottom.axis, draw.gene.labels=FALSE, draw.axis.title=plot.bottom.axis, axis.lim=c(0,max.count), horizontal.group=right.bar.beside.group, horizontal.group.by=right.bar.beside, vertical.group.by=right.bar.stack, vertical.group=right.bar.stack.group)))
 
   }  
 
@@ -699,7 +709,6 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
     counts = counts[,,gene.order,drop=FALSE]
   }
 
-
   n.variants = dim(counts)[1]
   n.samples = dim(counts)[2]
   n.gene = dim(counts)[3]
@@ -710,7 +719,7 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
   } else if (type == "frequency") {
     counts.melt = data.frame(variants="Any", melt(apply(counts, c("genes", "samples"), sum) > 0))
   }
-  
+
   ## Create a vectors correpsonding to the horiztonal and vertical grouping variables  
   if(vertical.group.by != "none" & !is.null(vertical.group)) {
     vertical.group.ix = as.factor(mapvalues(counts.melt[,vertical.group.by], names(vertical.group), vertical.group, warn_missing=FALSE))
@@ -720,24 +729,27 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
     vertical.group.ix = as.factor(rep(1, nrow(counts.melt)))
   }  
 
-  if(horizontal.group.by != "none" & !is.null(horizontal.group)) {
+  if(horizontal.group.by != "none" & !is.null(horizontal.group)) {  
     horizontal.group.ix = as.factor(mapvalues(counts.melt[,horizontal.group.by], names(horizontal.group), horizontal.group, warn_missing=FALSE))
   } else if (horizontal.group.by != "none") {
     horizontal.group.ix = as.factor(counts.melt[,horizontal.group.by])
   } else {
     horizontal.group.ix = as.factor(rep(1, nrow(counts.melt)))
   }  
+  
   n.horizontal.groups = length(levels(horizontal.group.ix))
   n.vertical.groups = length(levels(vertical.group.ix))
-  
+ 
 
   ## Add new group indexes to data frame
-  counts.melt = data.frame(counts.melt, horizontal.group.ix, vertical.group.ix)
-  
+  counts.melt = data.frame(counts.melt, horizontal.group.ix, vertical.group.ix, stringsAsFactors=FALSE)
+
   ## Recount according to the new grouping scheme 
   if(type == "counts") {
+  
     counts.by.group = xtabs(value ~ genes + horizontal.group.ix + vertical.group.ix, data=counts.melt)
     axis.lab = "Mutation counts"
+    
   } else if (type == "frequency" & vertical.group.by == "samples" & horizontal.group.by == "none") {
 
     counts.by.group = xtabs(value ~ genes + horizontal.group.ix + vertical.group.ix, data=counts.melt) 
@@ -888,13 +900,16 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
   mai = par("mai")
   
   if(draw.axis == TRUE) {
-    cex = compute.cex(width = par("pin")[axis.side] , height = mai[axis.side], label = axis.lab)
+    cex = 0.8 * compute.cex(width = par("pin")[axis.side] , height = mai[axis.side], label = axis.lab)
     xaxp = par(axp)
     xaxp.lab = seq(xaxp[1], xaxp[2], length=xaxp[3]+1)
-    axis(axis.side, las=1, at=xaxp.lab, cex.axis=cex, labels=abs(xaxp.lab))
+    s1 = seq(1, length(xaxp.lab), by=2)  ## Trick R into plotting all axis labels
+    s2 = seq(2, length(xaxp.lab), by=2)
+    axis(axis.side, las=1, at=xaxp.lab[s1], cex.axis=cex, labels=abs(xaxp.lab)[s1])
+    axis(axis.side, las=1, at=xaxp.lab[s2], cex.axis=cex, labels=abs(xaxp.lab)[s2])
   }
   if(draw.axis.title == TRUE) {
-    cex = compute.cex(width = par("pin")[axis.side], height = mai[axis.side], label = axis.lab)  
+    cex = 0.8 * compute.cex(width = par("pin")[axis.side], height = mai[axis.side], label = axis.lab)  
     mtext(axis.lab, side=axis.side, cex=cex, line=par("mgp")[1])
   }
   if(draw.gene.labels == TRUE) { 
@@ -906,14 +921,14 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
     if(type == "frequency") {
       y.round = as.character(round(y.actual.counts*100))
       y.lab = as.character(y.round)
-      y.lab[y.round < 1] = "<1"
+      y.lab[y.round > 0 & y.round < 1] = "<1"
     } else {
       y.lab = as.character(y.actual.counts)
     }
     
     ## Get the mid point for each horizontal.bar
 	mar.loc = x.start + ((x.end - x.start)/2)
-    mar.line = rep(0:(n.vertical.groups-1), each=n.horizontal.groups*n.gene)
+    mar.line = rep(0:(n.vertical.groups-1), each=n.horizontal.groups*n.gene) + 0.5
     cex = 0.8 * compute.cex(width = ((mar[freq.side] - par("mgp")[2]) / n.vertical.groups) * mar.to.mai(), height = par("pin")[fin] / n.gene / n.horizontal.groups, label = y.lab)
     
     ## Plot for each line (vertical.group)
@@ -981,7 +996,8 @@ sort.coMut = function(	M,
   
   if(length(ordering) == 1) {
     ordering = match.arg(ordering)
-  }  
+  }
+  
   
   ## The rest of the function assumes ordering will be done by row. Transpose matrix if columns need sorting
   if(margin == "columns") {
