@@ -508,7 +508,8 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
   ## Plot tables one by one
   table.nrows = unlist(lapply(1:ntable, function(i) { nrow(table.list[[i]][["matrix"]]) }))
   total.nrow = sum(table.nrows)
-
+ 
+  ## Calculate spacing
   mar.fig.fraction = mar.to.fig.fraction(mar)
   table.spacing = row.space*table.nrows
   total.table.space = sum(table.spacing)
@@ -557,41 +558,39 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
   
   ## Get groups for right.bar beside groups 
   right.bar.beside.group = NULL
-#  bar.col = NULL
+  right.bar.beside.group.order = NULL  
   if(!is.null(right.bar.beside)) {
-    ind = as.numeric(right.bar.beside[1])
-
+    ind = as.numeric(right.bar.beside[[1]])
     temp.matrix = table.list[[ind]]$matrix
     temp.mapping = table.list[[ind]]$mapping
 
-	right.bar.beside.group = temp.matrix[right.bar.beside[2],]
+    ind = right.bar.beside[[2]]
+	right.bar.beside.group = temp.matrix[ind,]
     matrix.values = unique(c(right.bar.beside.group))
     temp.mapping = subset(temp.mapping, temp.mapping[,1] %in% matrix.values)
+    
     right.bar.beside.group = mapvalues(right.bar.beside.group, as.character(temp.mapping[,1]), as.character(temp.mapping[,3]), warn_missing=FALSE)
- #   bar.col = rbind(bar.col, as.character(temp.mapping$bg.col))
     names(right.bar.beside.group) = colnames(temp.matrix)
+    right.bar.beside.group.order = unique(right.bar.beside.group)
     right.bar.beside = "samples"
   } 
 
   ## Get groups for right.bar stack groups
-  right.bar.stack.group = NULL  
+  right.bar.stack.group = NULL
+  right.bar.stack.group.order = NULL 
   if(!is.null(right.bar.stack)) {
-    ind = as.numeric(right.bar.stack[1])
+    ind = as.numeric(right.bar.stack[[1]])
     temp.matrix = table.list[[ind]]$matrix
     temp.mapping = table.list[[ind]]$mapping
 
-	right.bar.stack.group = temp.matrix[right.bar.stack[2],]
+    ind = right.bar.stack[[2]]
+	right.bar.stack.group = temp.matrix[ind,]
     matrix.values = unique(c(right.bar.stack.group))
     temp.mapping = subset(temp.mapping, temp.mapping[,1] %in% matrix.values)
         
     right.bar.stack.group = mapvalues(right.bar.stack.group, as.character(temp.mapping[,1]), as.character(temp.mapping[,3]), warn_missing=FALSE)
-    
-#    if(is.null(bar.col)) {
-#      bar.col = cbind(bar.col, as.character(temp.mapping$bg.col))
-#    } else {
-#      bar.col = rbind(bar.col, as.character(temp.mapping$bg.col))
-#    }
     names(right.bar.stack.group) = colnames(temp.matrix)
+    right.bar.stack.group.order = unique(right.bar.stack.group)
     right.bar.stack = "samples"
   }  
 
@@ -640,7 +639,7 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
     ## Plot table
     coMut.with.bars(new.tabler, mar=temp.mar,
     	tabler.args=c(tabler.args, list(cexRow=gene.name.cex, column.label=plot.bottom.labels, plot.samples="selected", plot.samples.index=samples.to.show.order, bg.col=bg.col, na.col=na.col)),
-    	right.bar.args=c(right.bar.args, list(type=right.bar.type, draw.axis=plot.bottom.axis, draw.gene.labels=FALSE, draw.axis.title=plot.bottom.axis, axis.lim=c(0,max.count), horizontal.group=right.bar.beside.group, horizontal.group.by=right.bar.beside, vertical.group.by=right.bar.stack, vertical.group=right.bar.stack.group)))
+    	right.bar.args=c(right.bar.args, list(type=right.bar.type, draw.axis=plot.bottom.axis, draw.gene.labels=FALSE, draw.axis.title=plot.bottom.axis, axis.lim=c(0,max.count), horizontal.group=right.bar.beside.group, horizontal.group.by=right.bar.beside, horizontal.group.order=right.bar.beside.group.order, vertical.group.by=right.bar.stack, vertical.group=right.bar.stack.group, vertical.group.order=right.bar.stack.group.order)))
 
   }  
 
@@ -651,7 +650,7 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
 
 
 
-gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "frequency"), vertical.group.by=c("none", "variants", "samples"), vertical.group=NULL, horizontal.group.by=c("none", "variants", "samples"), horizontal.group=NULL, horiz=FALSE, reverse=FALSE, axis.lim=NULL, space=0.1, draw.axis=TRUE, draw.gene.labels=TRUE, draw.axis.title=TRUE, draw.freq=FALSE, plot=TRUE) {
+gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "frequency"), vertical.group.by=c("none", "variants", "samples"), vertical.group=NULL, vertical.group.order=NULL, horizontal.group.by=c("none", "variants", "samples"), horizontal.group=NULL, horizontal.group.order=NULL, horiz=FALSE, reverse=FALSE, axis.lim=NULL, space=0.1, draw.axis=TRUE, draw.gene.labels=TRUE, draw.axis.title=TRUE, draw.freq=FALSE, plot=TRUE) {
 
   ## Takes a 3-dimensional array of variant by sample by gene counts and generates a barplot according to the supplied grouping structure
   ## Written by: Josh Campbell
@@ -776,7 +775,24 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
   } else {
     stop("type='frequency' cannot be used with 'variants' or with both horizontal.group.by and vertical.group.by set to 'samples'")
   }
-
+  
+  ## Perform ordering of horizontal/vertical groups if requested
+  if(is.null(horizontal.group.order)) {
+    horizontal.group.order = dimnames(counts.by.group)$horizontal.group.ix
+  } else if (!is.overlapping(horizontal.group.order, unique(dimnames(counts.by.group)$horizontal.group.ix))) {
+    stop("horizontal.group.order needs to be a character vector of that contains all the elements in horizontal.group")
+  } 
+  if(is.null(vertical.group.order)) {
+    vertical.group.order = dimnames(counts.by.group)$vertical.group.ix
+  } else if (!is.overlapping(vertical.group.order, unique(dimnames(counts.by.group)$vertical.group.ix))) {
+    stop("vertical.group.order needs to be a character vector of that contains all the elements in vertical.group")
+  } 
+  
+  if(horiz == TRUE) {
+    horizontal.group.order = rev(horizontal.group.order)
+    vertical.group.order = rev(vertical.group.order)
+  }
+  counts.by.group = counts.by.group[,horizontal.group.order,vertical.group.order,drop=FALSE]
  
   ## Combine counts so that all values for the same gene are next to each other
   final = t(apply(counts.by.group, "vertical.group.ix", cbind))
