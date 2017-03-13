@@ -410,7 +410,7 @@ coMut.with.bars = function(coMut.obj, left.bar=c("counts", "frequency", "none", 
 
   par(mar=temp.mar, oma=oma, mgp=temp.mgp)    
   if(right.bar != "none" & coMut.obj$type == "mutation") {
-    right.bar.required.args = list(counts=coMut.obj$counts, horiz=TRUE, gene.order=rev(rownames(coMut.obj$matrix)), draw.gene.labels=FALSE)
+    right.bar.required.args = list(counts=coMut.obj$counts, type=right.bar, horiz=TRUE, gene.order=rev(rownames(coMut.obj$matrix)), draw.gene.labels=FALSE)
     do.call.args("gene.barplot", right.bar.required.args, right.bar.args) 
   }  
   
