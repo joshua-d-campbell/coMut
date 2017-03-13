@@ -79,7 +79,7 @@ columns.to.coMut = function(maf, variant.categories=tcga.mapping(), type=c("muta
   keep.in.ordering = rep(TRUE, nrow(variant.matrix))
   names(keep.in.ordering) = rownames(variant.matrix)
 
-  return(list(matrix=variant.matrix, type=type, mapping=variant.categories, counts=total.variants.samples.genes, full.counts=total.variants.samples.genes.full, keep=keep.in.ordering, keep.in.plot))
+  return(list(matrix=variant.matrix, type=type, mapping=variant.categories, counts=total.variants.samples.genes, full.counts=total.variants.samples.genes.full, keep=keep.in.ordering, plot=keep.in.plot))
 }
 
 
@@ -175,7 +175,7 @@ matrix.to.coMut = function(mat, type=c("mutation", "annotation"), variant.catego
   keep.in.ordering = rep(TRUE, nrow(variant.matrix))
   names(keep.in.ordering) = rownames(variant.matrix)
 
-  return(list(matrix=variant.matrix, type=type, mapping=variant.categories, counts=total.variants.samples.genes, keep=keep.in.ordering, keep.in.plot))
+  return(list(matrix=variant.matrix, type=type, mapping=variant.categories, counts=total.variants.samples.genes, keep=keep.in.ordering, plot=keep.in.plot))
 }
 
 
@@ -471,18 +471,22 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
       
       ## Shift baseline value in matrix to zero if no zeros are present for each row
       ## Mainly for annotation like matrices that do not have a baseline (i.e. unmutated) state
-      matrix.to.add.min = apply(matrix.to.add, 1, min, na.rm=TRUE)
-      ind = matrix.to.add.min > 0
-      matrix.to.add[ind,] = sweep(matrix.to.add[ind,,drop=FALSE], 1, matrix.to.add.min[ind], "-")
+      if( table.list[[i]][["type"]] == "mutation") {
+        matrix.to.add.min = apply(matrix.to.add, 1, min, na.rm=TRUE)
+        ind = matrix.to.add.min > 0
+        matrix.to.add[ind,] = sweep(matrix.to.add[ind,,drop=FALSE], 1, matrix.to.add.min[ind], "-")
 
-      ## Shift values to be greater/less than the values currently in the meta.matrix
-      ## This will give priority to tables earlier in the table.list for sorting
-      ind = matrix.to.add < 0 & !is.na(matrix.to.add)
-      matrix.to.add[ind] = matrix.to.add[ind] + meta.matrix.min
+        ## Shift values to be greater/less than the values currently in the meta.matrix
+        ## This will give priority to tables earlier in the table.list for sorting
+        ind = matrix.to.add < 0 & !is.na(matrix.to.add)
+        matrix.to.add[ind] = matrix.to.add[ind] + meta.matrix.min
       
-      ind = matrix.to.add > 0 & !is.na(matrix.to.add)
-      matrix.to.add[ind] = matrix.to.add[ind] + meta.matrix.max
-      
+        ind = matrix.to.add > 0 & !is.na(matrix.to.add)
+        matrix.to.add[ind] = matrix.to.add[ind] + meta.matrix.max
+      } else {
+        matrix.to.add = matrix.to.add + meta.matrix.min
+	matrix.to.add = matrix.to.add + meta.matrix.max
+      }
       meta.matrix = rbind(matrix.to.add[,table.colnames,drop=FALSE], meta.matrix)
     }
   } 
