@@ -453,17 +453,24 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
   }
   
   ## Create meta-matrix for ordering, start with last one
-  meta.matrix = table.list[[ntable]][["matrix"]]
-  rows.for.ordering = table.list[[ntable]][["keep"]]
-  meta.matrix = meta.matrix[,table.colnames,drop=FALSE][rows.for.ordering,]
-  
+  #meta.matrix = table.list[[ntable]][["matrix"]]
+  #rows.for.ordering = table.list[[ntable]][["keep"]]
+  #meta.matrix = meta.matrix[,table.colnames,drop=FALSE][rows.for.ordering,]
+  meta.matrix = c()
+  meta.matrix.rowtype = c()
+
   if(ntable > 1) {
-    for(i in (ntable-1):1) {
+    for(i in (ntable):1) {
 
       ## From the last table to the first, increase or decrease the ids so they are non-overlapping 
       ## with all other tables. Then concatenate into one super table for sorting
-      meta.matrix.max = max(meta.matrix, na.rm=TRUE)
-      meta.matrix.min = min(meta.matrix, na.rm=TRUE)
+      if(!is.null(nrow(meta.matrix))) {
+        meta.matrix.max = max(meta.matrix, na.rm=TRUE)
+        meta.matrix.min = min(meta.matrix, na.rm=TRUE)
+      } else {
+        meta.matrix.max = 0
+	meta.matrix.min = 0
+      }
 
       rows.for.ordering = table.list[[i]][["keep"]]
       matrix.to.add = table.list[[i]][["matrix"]][,table.colnames,drop=FALSE][rows.for.ordering,,drop=FALSE]
@@ -483,10 +490,17 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
       
         ind = matrix.to.add > 0 & !is.na(matrix.to.add)
         matrix.to.add[ind] = matrix.to.add[ind] + meta.matrix.max
+
+	rowtype = rep("mutation", nrow(matrix.to.add))
+
       } else {
+
+        rowtype = rep("annotation", nrow(matrix.to.add))
         matrix.to.add = matrix.to.add + meta.matrix.min
 	matrix.to.add = matrix.to.add + meta.matrix.max
       }
+
+      meta.matrix.rowtype = c(rowtype, meta.matrix.rowtype)
       meta.matrix = rbind(matrix.to.add[,table.colnames,drop=FALSE], meta.matrix)
     }
   } 
@@ -503,7 +517,7 @@ multi.coMut = function(table.list, sample.order="mutation.type", close.screens=T
   } 
 
   ## Perform ordering of samples across all tablers
-  global.sample.order = sort.coMut(meta.matrix, margin="columns", ordering=sample.order)
+  global.sample.order = sort.coMut(meta.matrix, margin="columns", type=meta.matrix.rowtype, ordering=sample.order)
   global.sample.names = colnames(meta.matrix)[global.sample.order]
 
   samples.to.show.order = samples.to.show[global.sample.order]
@@ -972,6 +986,7 @@ gene.barplot = function(counts, col=NULL, gene.order=NULL, type=c("counts", "fre
 sort.coMut = function(	M,
 						ordering=c("frequency", "mutation.type", "frequency.mutation.type", "names", "index", "none"),
 						margin=c("rows", "columns"),
+						type=NULL,
 						names=NULL,
 						index=NULL,
 						mutation.cutoff=0,
@@ -1032,6 +1047,18 @@ sort.coMut = function(	M,
     stop(paste("index is out of range for matrix margin: ", margin, sep=""))
   }
   
+  ## Get index of annotation colums
+  if(!is.null(type)) {
+    if(length(type) != ncol(M)) {
+      stop("The type must be the same length as the selected margin in the matrix to be sorted")
+    }
+    mutation.ix = type == "mutation"
+    annotation.ix = type == "annotation"
+  } else {
+    mutation.ix = rep(TRUE, ncol(M))
+    annotation.ix = rep(FALSE, ncol(M))
+  }
+
   ## Handle NAs as lowested possible kind of mutation
   M.min = min(M, na.rm=TRUE)
   if(M.min > -1) { M.min = -1 }
@@ -1039,10 +1066,18 @@ sort.coMut = function(	M,
   
   ## Generate different matricies 
   index = 1:nrow(M)
-  M.pos = M>mutation.cutoff  	# Used to sort by frequency
-  M.any = M != 0           		# Used when sorting by type, will still sor NA's or other mutations < mutation.cutoff after the mutations > mutation.cutoff
-  M.row.freq = rowSums(M.pos, na.rm=TRUE)
-  M.column.freq = colSums(M.pos, na.rm=TRUE)
+  
+  # Used to sort by frequency, all annotation values should be sorted on, so set to TRUE
+  M.pos = M
+  M.pos[,mutation.ix] = M.pos[,mutation.ix] > mutation.cutoff
+  
+  # Used when sorting by type, will still sor NA's or other mutations < mutation.cutoff after the mutations > mutation.cutoff
+  M.any = M
+  M.any[,mutation.ix] = M.any[,mutation.ix] != 0
+  
+  ## Used to sort by frequency
+  M.row.freq = rowSums(M.pos[,mutation.ix], na.rm=TRUE)
+  M.column.freq = colSums(M.pos[,mutation.ix], na.rm=TRUE)
   
   ## Order samples by overall frequency, mutation type, or a given set of indices or labels
   if (ordering == "frequency") {
